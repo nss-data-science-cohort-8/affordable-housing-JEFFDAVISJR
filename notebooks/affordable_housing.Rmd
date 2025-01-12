@@ -1,0 +1,102 @@
+---
+title: "Difference in Differences Warmup"
+output: html_notebook
+---
+
+In 1992, the minimum wage in New Jersey was increased from \$4.25 to \$5.05. In nearby Pennsylvania, the minimum wage stayed the same.
+
+In order to determine whether this change affected employment, data about the number of employees at fast food restaurants was collected before and after the change. You've been provided this data.
+
+```{r}
+library(tidyverse)
+
+employment <- read_csv("../data/employment.csv")
+```
+
+In the state column, 0 corresponds to Pennsylvania and 1 corresponds to New Jersey.
+
+**Part 1:** In the state column, replace 0 with "PA" and 1 with "NJ". Hint: You can use the case_when function for this. 
+```{r}
+employment <- employment |> 
+  mutate(state = case_when(state == 0 ~ 'PA',
+            state == 1 ~ 'NJ'))
+
+employment
+```
+
+
+```{r}
+employment <- employment |> 
+  mutate(post_pre = total_emp_nov - total_emp_feb)
+
+employment
+```
+**Part 2:** Find the average number of employees split out by state and month.
+```{r}
+tibblish <- employment |> 
+  group_by(state) |> 
+  summarize(mean(total_emp_feb), 
+            mean(total_emp_nov), 
+            mean(post_pre))
+
+tibblish
+```
+
+```{r}
+tibblish |> 
+  add_row(state = 'NJ-PA',
+          `mean(total_emp_feb)` = 20.43058 - 23.38000,
+          `mean(total_emp_nov)` = 20.89725 - 21.09667,
+          `mean(post_pre)` = 0.4666667 - (-2.2833333))
+```
+
+```{r}
+tibblish |> 
+  arrange(desc(state)) |> 
+  mutate(diff(`mean(post_pre)`))
+```
+
+**Part 4:** Create a plot showing the averages before and after for each group. You should color your plot by the group.
+Hint: You may need to pivot your data so that the averages are all contained in one column.
+
+```{r}
+tibblish |> 
+  pivot_longer(cols = c(`mean(total_emp_feb)`,
+                        `mean(total_emp_nov)`, 
+                        `mean(post_pre)`)) |> 
+  filter(state %in% c('NJ', 'PA'), name != 'mean(post_pre)') |> 
+  ggplot(aes(x=name, y=value, fill = state)) +
+  geom_col(position = 'dodge')
+```
+```{r}
+tibblish |> 
+  pivot_longer(cols = c(`mean(total_emp_feb)`,
+                        `mean(total_emp_nov)`, 
+                        `mean(post_pre)`)) |> 
+  filter(state %in% c('NJ', 'PA'), name != 'mean(post_pre)') |> 
+  ggplot(aes(x=name, y=value, color = state, group = state)) +
+  geom_point() +
+  geom_line()
+```
+
+**Part 5:** Set up a regression model to estimate the effect of the minimum wage increase on the average number of employees. 
+Hint: You'll need to pivot the data so that the employment numbers are all in one column.
+What is the estimate for the effect? Is it statistically significant?
+
+
+```{r}
+emp_model <- employment |> 
+  select(-post_pre) |> 
+  pivot_longer(cols = c(total_emp_feb, total_emp_nov)) |> 
+  mutate(pre_post = if_else(name == "total_emp_feb", "pre", "post")) 
+
+```
+
+
+```{r}
+  glm(value ~ pre_post + state, data = emp_model)
+```
+```{r}
+lm(value ~ state + pre_post + state:pre_post, data = emp_model)
+```
+
